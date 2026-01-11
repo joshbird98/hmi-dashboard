@@ -3,6 +3,7 @@ import requests
 import pandas as pd
 import time
 import datetime
+import json
 
 st.set_page_config(page_title="Ion Source Cloud", layout="wide")
 st.title("☁️ Ion Source Remote Monitor")
@@ -11,19 +12,18 @@ st.title("☁️ Ion Source Remote Monitor")
 THING_NAME = "ipids-ion-source-monitor-v1"
 
 
-def get_dweet_data():
+def get_ntfy_data():
     try:
-        # Fetch the latest 'dweet' for our thing
-        response = requests.get(f"https://dweet.io/get/latest/dweet/for/{THING_NAME}", timeout=2)
-        if response.status_code == 200:
-            content = response.json()
-            # dweet structure: {"with": [ {"thing":..., "created":..., "content": {YOUR_DATA}} ]}
-            if "with" in content and len(content["with"]) > 0:
-                item = content["with"][0]
-                return item["content"], item["created"]
+        # Fetch the last 1 message from the topic
+        resp = requests.get("https://ntfy.sh/ipids-ion-monitor/json?poll=1", timeout=2)
+        for line in resp.iter_lines():
+            if line:
+                data = json.loads(line)
+                if data['event'] == 'message':
+                     # ntfy stores the JSON string inside the 'message' field
+                    return json.loads(data['message']), data['time']
     except Exception:
         return None, None
-    return None, None
 
 
 # --- MAIN LOOP ---
@@ -35,7 +35,7 @@ if st.button('Refresh Data'):
 time.sleep(1)  # Add a small delay to prevent rapid-fire reloading
 st.empty()  # Placeholder
 
-data, timestamp = get_dweet_data()
+data, timestamp = get_ntfy_data()
 
 if data is None:
     st.warning("Waiting for data stream...")
