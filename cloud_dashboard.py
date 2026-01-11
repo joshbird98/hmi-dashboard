@@ -9,13 +9,13 @@ st.set_page_config(page_title="Ion Source Cloud", layout="wide")
 st.title("☁️ Ion Source Remote Monitor")
 
 # CONFIG: Must match the name in your Lab PC script
-THING_NAME = "ipids-ion-source-monitor-v1"
+THING_NAME = "ibc-ipids-monitor"
 
 
 def get_ntfy_data():
     try:
         # Fetch the last 1 message from the topic
-        resp = requests.get("https://ntfy.sh/ipids-ion-monitor/json?poll=1", timeout=2)
+        resp = requests.get(f"https://ntfy.sh/{THING_NAME}/json?poll=1", timeout=2)
         for line in resp.iter_lines():
             if line:
                 data = json.loads(line)
