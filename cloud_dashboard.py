@@ -2,67 +2,105 @@ import streamlit as st
 import requests
 import pandas as pd
 import time
-import datetime
 import json
+import datetime
+
+# --- CONFIGURATION ---
+# This must match the topic you use in your Lab PC Python script
+# e.g. requests.post("https://ntfy.sh/ipids-ion-monitor", ...)
+TOPIC_NAME = "ibc-ipids-monitor"
 
 st.set_page_config(page_title="Ion Source Cloud", layout="wide")
-st.title("☁️ Ion Source Remote Monitor")
-
-# CONFIG: Must match the name in your Lab PC script
-THING_NAME = "ibc-ipids-monitor"
+st.title("☁️ Ion Source Remote Monitor (ntfy)")
 
 
 def get_ntfy_data():
     try:
-        # Fetch the last 1 message from the topic
-        resp = requests.get(f"https://ntfy.sh/{THING_NAME}/json?poll=1", timeout=2)
-        for line in resp.iter_lines():
-            if line:
-                data = json.loads(line)
-                if data['event'] == 'message':
-                     # ntfy stores the JSON string inside the 'message' field
-                    return json.loads(data['message']), data['time']
-    except Exception:
-        return None, None
+        # Fetch history: Get the last 1 message immediately
+        # poll=1 waits for new data, but since=all&limit=1 gets the saved data instantly
+        url = f"https://ntfy.sh/{TOPIC_NAME}/json?since=all&limit=1"
+
+        response = requests.get(url, timeout=5)
+
+        if response.status_code == 200:
+            # The response is a stream of JSON lines (NDJSON)
+            # We just want the first valid message line
+            for line in response.iter_lines():
+                if line:
+                    data_obj = json.loads(line)
+                    if data_obj.get('event') == 'message':
+                        # The actual data snapshot is stored as a string inside 'message'
+                        payload = data_obj.get('message', '{}')
+
+                        # Convert that string back into a Python Dictionary
+                        snapshot = json.loads(payload)
+
+                        # Timestamp is Unix epoch
+                        timestamp = data_obj.get('time')
+                        return snapshot, timestamp
+    except Exception as e:
+        # print(e) # For debugging locally
+        pass
+
+    return None, None
 
 
 # --- MAIN LOOP ---
-# Streamlit Cloud handles auto-refresh differently than local
 if st.button('Refresh Data'):
     st.rerun()
 
-# Auto-refresh logic (Experimental for cloud)
-time.sleep(1)  # Add a small delay to prevent rapid-fire reloading
-st.empty()  # Placeholder
+# Auto-refresh placeholder
+time.sleep(1)
+st.empty()
 
 data, timestamp = get_ntfy_data()
 
 if data is None:
-    st.warning("Waiting for data stream...")
+    st.warning(f"Waiting for data on topic: {TOPIC_NAME}...")
+    st.info("Check that your Lab PC is running and sending data to ntfy.sh")
 else:
-    # Calculate Age
-    # dweet timestamp is usually ISO string, but we can just use "Time since update"
-    # For simplicity, we just show the received values
+    # 1. Calculate Age
+    if timestamp:
+        msg_time = datetime.datetime.fromtimestamp(timestamp)
+        age_seconds = time.time() - timestamp
 
-    st.success(f"Data Received. Cloud Timestamp: {timestamp}")
+        # Display Time
+        t_str = msg_time.strftime('%H:%M:%S')
 
-    # --- YOUR DASHBOARD UI HERE ---
-    k1, k2, k3 = st.columns(3)
+        if age_seconds > 60:
+            st.error(f"⚠️ Data is Stale! Last update: {t_str} ({int(age_seconds)}s ago)")
+        else:
+            st.success(f"🟢 Online. Last update: {t_str}")
 
-    # Example Tags
+    # 2. Key Metrics
+    k1, k2, k3, k4 = st.columns(4)
+
+    # Use .get() to safely access tags. Default to 0 if missing.
     volts = data.get("ionSource.general.beamVoltage", 0)
-    k1.metric("Beam Voltage", f"{volts} kV")
+    k1.metric("Beam Voltage", f"{volts:.1f} kV")
 
+    # Scientific notation for pressure
     press = data.get("system.vacuumSystem.gauges.source.readback_mB", 0)
-    k2.metric("Pressure", f"{press:.1e} mbar")
+    k2.metric("Source Pressure", f"{press:.1e} mbar")
+
+    mag = data.get("beamline.magnet.readbackA", 0)
+    k3.metric("Magnet", f"{mag:.2f} A")
 
     status = data.get("system.ionSource.general.status", 0)
-    k3.metric("Status", status)
+    status_map = {0: "OFF", 1: "STARTING", 2: "RUNNING", 99: "FAULT"}
+    k4.metric("State", status_map.get(status, f"Code {status}"))
 
+    # 3. Full Data Table
     st.divider()
-    df = pd.DataFrame(list(data.items()), columns=["Tag", "Value"])
-    st.dataframe(df, use_container_width=True)
+    # Convert dict to table
+    df = pd.DataFrame(list(data.items()), columns=["Tag Name", "Value"])
 
-# Force a reload every 2 seconds
+    # Optional: Format floats in the table to look nicer
+    # (This assumes values are numbers, handles errors if they are strings)
+    # df['Value'] = df['Value'].apply(lambda x: f"{x:.4g}" if isinstance(x, (int, float)) else x)
+
+    st.dataframe(df, use_container_width=True, height=500)
+
+# Cloud Auto-Reload
 time.sleep(2)
 st.rerun()
