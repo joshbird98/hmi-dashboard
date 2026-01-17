@@ -45,29 +45,37 @@ def get_raw_data():
         response = requests.get(final_url, timeout=5)
         
         if response.status_code == 200:
-            snapshot = response.json()
-            
-            # Extract timestamp safely using Pandas (very robust)
+            try:
+                snapshot = response.json()
+            except json.JSONDecodeError:
+                return {"error": "File is not valid JSON"}, None
+
             raw_ts = snapshot.get('timestamp')
-            ts_val = None
             
-            if raw_ts:
+            # Debugging: If no timestamp, return None immediately
+            if raw_ts is None:
+                return snapshot, None
+
+            # Attempt Parsing
+            try:
+                # 1. Try Float (Unix Timestamp)
+                ts_val = float(raw_ts)
+            except (ValueError, TypeError):
+                # 2. Try ISO String (e.g. 2026-01-17T...)
                 try:
-                    # 1. Try treating it as a float/int (Unix timestamp)
-                    ts_val = float(raw_ts)
-                except (ValueError, TypeError):
-                    # 2. Try parsing string (ISO, etc) using Pandas
-                    try:
-                        # pd.to_datetime handles almost any string format automatically
-                        dt = pd.to_datetime(raw_ts)
-                        # Convert to unix timestamp
-                        ts_val = dt.timestamp()
-                    except Exception:
-                        pass # Failed to parse
+                    # Clean up "Z" if present
+                    clean_ts = str(raw_ts).replace("Z", "")
+                    # Use standard library (lighter than pandas)
+                    dt = datetime.datetime.fromisoformat(clean_ts)
+                    ts_val = dt.timestamp()
+                except Exception as e:
+                    # If parsing fails, we still return the data, just no time
+                    print(f"Timestamp parsing failed: {e}")
+                    ts_val = None
 
             return snapshot, ts_val
 
-    except Exception as e:
+    except Exception:
         pass
     return None, None
 
