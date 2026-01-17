@@ -6,8 +6,8 @@ import datetime
 import pandas as pd
 
 # --- CONFIGURATION ---
-TOPIC_NAME = "ibc-ipids-monitor"  # Match your ntfy topic
-REFRESH_INTERVAL = 30 # Seconds for auto-refresh
+RAW_URL = "https://gist.githubusercontent.com/joshbird98/9de20220c7cd1e3c359c22b4775faa46/raw/status.json"
+REFRESH_INTERVAL = 30  # Seconds for auto-refresh
 
 st.set_page_config(
     page_title="IPIDS Monitor",
@@ -35,27 +35,47 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+
 # --- DATA FETCHING ---
-def get_ntfy_data():
-    """Fetches the single latest status message from ntfy.sh"""
+def get_raw_data():
+    """Fetches the JSON directly from the raw GitHub URL"""
     try:
-        url = f"https://ntfy.sh/{TOPIC_NAME}/json?since=all&limit=1"
-        response = requests.get(url, timeout=3)
+        # Add a timestamp query param to bypass GitHub's CDN cache
+        # This ensures we get the FRESH file every time.
+        cache_buster = f"?t={int(time.time())}"
+        final_url = RAW_URL + cache_buster
+
+        response = requests.get(final_url, timeout=5)
+
         if response.status_code == 200:
-            for line in response.iter_lines():
-                if line:
-                    data_obj = json.loads(line)
-                    if data_obj.get('event') == 'message':
-                        payload = data_obj.get('message', '{}')
-                        # The payload is a JSON string inside the message field
-                        try:
-                            snapshot = json.loads(payload)
-                            return snapshot, data_obj.get('time')
-                        except json.JSONDecodeError:
-                            return None, None
-    except Exception:
+            snapshot = response.json()
+
+            # Extract timestamp
+            # It might be a float (Unix) or String (ISO)
+            raw_ts = snapshot.get('timestamp')
+
+            # Helper to parse timestamp into a usable float
+            ts_val = None
+            if raw_ts:
+                try:
+                    ts_val = float(raw_ts)
+                except ValueError:
+                    try:
+                        # Parse ISO string "2026-01-17T..."
+                        # Handle potential fractional seconds
+                        clean_ts = raw_ts.replace("Z", "")
+                        dt = datetime.datetime.fromisoformat(clean_ts)
+                        ts_val = dt.timestamp()
+                    except ValueError:
+                        pass  # Keep as None if failed
+
+            return snapshot, ts_val
+
+    except Exception as e:
+        # print(f"Fetch Error: {e}")
         pass
     return None, None
+
 
 def get_val(data, path, default=0):
     """Helper to safely extract nested keys or return default"""
@@ -64,6 +84,7 @@ def get_val(data, path, default=0):
     # The log file structure is flat: "data": {"key.subkey": val}
     # So we just look up the string key directly.
     return data.get(path, default)
+
 
 # --- MAIN UI ---
 
@@ -76,16 +97,17 @@ with col_btn:
         st.rerun()
 
 # 2. Fetch Data
-raw_snapshot, msg_timestamp = get_ntfy_data()
+raw_snapshot, msg_timestamp = get_raw_data()
 
 # 3. Connection Logic
 if raw_snapshot is None:
-    st.warning(f"📡 Waiting for signal on ntfy.sh/{TOPIC_NAME}...")
-    st.stop()
+    st.warning("📡 Connecting to GitHub...")
+    st.info(f"Target: {RAW_URL}")
+    time.sleep(2)
+    st.rerun()
 
 # Extract the 'data' dictionary from the snapshot
 data = raw_snapshot.get("data", {})
-timestamp_str = raw_snapshot.get("timestamp", "")
 
 # Calculate "Freshness"
 age_seconds = 0
@@ -110,10 +132,10 @@ sys_state = state_map.get(state_code, "UNKNOWN")
 # Banner Container
 with st.container():
     c1, c2, c3 = st.columns([1, 2, 1])
-    
+
     # System State Box
     c1.metric("System State", sys_state)
-    
+
     # Large Banner
     if fault_active:
         c2.error(f"⚠️ SYSTEM FAULT ACTIVE ({status_msg})")
@@ -151,12 +173,11 @@ if cup_current == 0:
     label = "Beam Current (Straight)"
 else:
     label = "Beam Current (Cup)"
-r1c3.metric(label, f"{cup_current*1e6:.1f} µA") # Display in micro-amps
+r1c3.metric(label, f"{cup_current * 1e6:.1f} µA")  # Display in micro-amps
 
 # Magnet
 v_mag = get_val(data, "beamline.magnet.readbackA", 0)
 r1c4.metric("Magnet Current", f"{v_mag:.2f} A")
-
 
 # ROW 2: Ion Source Internals
 st.subheader("⚛️ Ion Source Control")
@@ -193,7 +214,6 @@ r3c3.metric("Gate Valve", "OPEN" if gate_val else "CLOSED")
 stage_z = get_val(data, "endstation.stage.motion.readback_z_mm", 0)
 r3c4.metric("Stage Z", f"{stage_z:.1f} mm")
 
-
 # --- DEBUG / RAW DATA TOGGLE ---
 st.divider()
 with st.expander("🛠️ View Raw Telemetry Data"):
@@ -203,8 +223,8 @@ with st.expander("🛠️ View Raw Telemetry Data"):
     st.dataframe(df, use_container_width=True)
 
 # Auto-reload logic
-time.sleep(1) 
-st.empty() # Placeholder clearing
-if age_seconds < 600: # Only auto-rerun if the page is somewhat active
+time.sleep(1)
+st.empty()  # Placeholder clearing
+if age_seconds < 600:  # Only auto-rerun if the page is somewhat active
     time.sleep(2)
     st.rerun()
