@@ -1,72 +1,210 @@
 import streamlit as st
 import requests
-import pandas as pd
 import time
+import json
 import datetime
+import pandas as pd
 
 # --- CONFIGURATION ---
-# PASTE YOUR CLEANED RAW URL HERE (The one without the long hash!)
-RAW_URL = "https://gist.githubusercontent.com/joshbird98/9de20220c7cd1e3c359c22b4775faa46/raw/status.json"
+TOPIC_NAME = "ibc-ipids-monitor"  # Match your ntfy topic
+REFRESH_INTERVAL = 30 # Seconds for auto-refresh
 
-st.set_page_config(page_title="IPIDS Monitor", layout="wide")
-st.title("☁️ Ion Source Gist Monitor")
+st.set_page_config(
+    page_title="Ion Source Monitor",
+    page_icon="⚡",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
 
-# Function to fetch data
-def get_gist_data():
+# --- CSS STYLING ---
+# Custom CSS to make metrics pop and reduce wasted whitespace
+st.markdown("""
+    <style>
+        .stMetric {
+            background-color: #0E1117;
+            border: 1px solid #303030;
+            padding: 15px;
+            border-radius: 5px;
+        }
+        div[data-testid="column"] {
+            text-align: center;
+        }
+        .block-container {
+            padding-top: 2rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# --- DATA FETCHING ---
+def get_ntfy_data():
+    """Fetches the single latest status message from ntfy.sh"""
     try:
-        # We add a random number to the URL to prevent Streamlit from 
-        # caching the old data (Cache busting)
-        nocache_url = f"{RAW_URL}?t={time.time()}"
-        
-        response = requests.get(nocache_url, timeout=5)
-        
+        url = f"https://ntfy.sh/{TOPIC_NAME}/json?since=all&limit=1"
+        response = requests.get(url, timeout=3)
         if response.status_code == 200:
-            return response.json()
+            for line in response.iter_lines():
+                if line:
+                    data_obj = json.loads(line)
+                    if data_obj.get('event') == 'message':
+                        payload = data_obj.get('message', '{}')
+                        # The payload is a JSON string inside the message field
+                        try:
+                            snapshot = json.loads(payload)
+                            return snapshot, data_obj.get('time')
+                        except json.JSONDecodeError:
+                            return None, None
     except Exception:
         pass
-    return None
+    return None, None
 
-# --- MAIN LOOP ---
-if st.button('Refresh Now'):
-    st.rerun()
+def get_val(data, path, default=0):
+    """Helper to safely extract nested keys or return default"""
+    if not data:
+        return default
+    # The log file structure is flat: "data": {"key.subkey": val}
+    # So we just look up the string key directly.
+    return data.get(path, default)
 
-# Auto-refresh placeholder
-time.sleep(1) 
-st.empty() 
+# --- MAIN UI ---
 
-data = get_gist_data()
+# 1. Header & Controls
+col_title, col_btn = st.columns([6, 1])
+with col_title:
+    st.title("⚡ IPIDS Remote Dashboard")
+with col_btn:
+    if st.button('🔄 Refresh'):
+        st.rerun()
 
-if data is None or "status" in data and data["status"] == "waiting":
-    st.warning("Waiting for Lab PC connection...")
-    st.info(f"Checking URL: {RAW_URL}")
+# 2. Fetch Data
+raw_snapshot, msg_timestamp = get_ntfy_data()
+
+# 3. Connection Logic
+if raw_snapshot is None:
+    st.warning(f"📡 Waiting for signal on ntfy.sh/{TOPIC_NAME}...")
+    st.stop()
+
+# Extract the 'data' dictionary from the snapshot
+data = raw_snapshot.get("data", {})
+timestamp_str = raw_snapshot.get("timestamp", "")
+
+# Calculate "Freshness"
+age_seconds = 0
+status_color = "green"
+status_msg = "ONLINE"
+
+if msg_timestamp:
+    age_seconds = time.time() - msg_timestamp
+    if age_seconds > 120:  # 2 minutes considered stale
+        status_color = "red"
+        status_msg = "OFFLINE / STALE"
+    elif age_seconds > 30:
+        status_color = "orange"
+        status_msg = "SLOW CONNECTION"
+
+# 4. Status Banner
+fault_active = get_val(data, "system.general.systemFault", False)
+state_code = get_val(data, "system.ionSource.general.status", 0)
+state_map = {0: "OFF", 1: "STARTING", 2: "RUNNING", 99: "FAULT"}
+sys_state = state_map.get(state_code, "UNKNOWN")
+
+# Banner Container
+with st.container():
+    c1, c2, c3 = st.columns([1, 2, 1])
+    
+    # System State Box
+    c1.metric("System State", sys_state)
+    
+    # Large Banner
+    if fault_active:
+        c2.error(f"⚠️ SYSTEM FAULT ACTIVE ({status_msg})")
+    elif status_color == "green":
+        c2.success(f"🟢 SYSTEM NORMAL ({status_msg})")
+    else:
+        c2.warning(f"🟠 {status_msg} (Last saw {int(age_seconds)}s ago)")
+
+    # Timestamp
+    try:
+        # Parse the ISO timestamp from the log if possible
+        pretty_time = datetime.datetime.fromtimestamp(msg_timestamp).strftime('%H:%M:%S')
+    except:
+        pretty_time = "Unknown"
+    c3.metric("Last Update", pretty_time)
+
+st.divider()
+
+# --- KEY METRICS LAYOUT ---
+
+# ROW 1: The "Big Three" (Voltage, Pressure, Beam)
+st.subheader("🚀 Primary Parameters")
+r1c1, r1c2, r1c3, r1c4 = st.columns(4)
+
+v_beam = get_val(data, "system.ionSource.general.beamVoltage", 0)
+r1c1.metric("Beam Voltage", f"{v_beam:.2f} kV")
+
+p_source = get_val(data, "system.vacuumSystem.gauges.source.readback_mB", 0)
+r1c2.metric("Source Pressure", f"{p_source:.1e} mbar")
+
+# Check which cup is active or sum them
+cup_current = get_val(data, "beamline.drop_in_cup.measured_current_A", 0)
+if cup_current == 0:
+    cup_current = get_val(data, "beamline.straight_thru_cup.measured_current_A", 0)
+    label = "Beam Current (Straight)"
 else:
-    # GitHub doesn't give us a timestamp in the raw file, 
-    # so we assume "Live" means "Just fetched now".
-    current_time = datetime.datetime.now().strftime("%H:%M:%S")
-    st.success(f"Data Received at {current_time}")
+    label = "Beam Current (Cup)"
+r1c3.metric(label, f"{cup_current*1e6:.1f} µA") # Display in micro-amps
 
-    # --- METRICS ---
-    k1, k2, k3, k4 = st.columns(4)
-    
-    # Use .get() to safely access tags
-    volts = data.get("ionSource.general.beamVoltage", 0)
-    k1.metric("Beam Voltage", f"{volts:.1f} kV")
-    
-    press = data.get("system.vacuumSystem.gauges.source.readback_mB", 0)
-    k2.metric("Source Pressure", f"{press:.1e} mbar")
-    
-    mag = data.get("beamline.magnet.readbackA", 0)
-    k3.metric("Magnet", f"{mag:.2f} A")
+# Magnet
+v_mag = get_val(data, "beamline.magnet.readbackA", 0)
+r1c4.metric("Magnet Current", f"{v_mag:.2f} A")
 
-    status = data.get("system.ionSource.general.status", 0)
-    status_map = {0: "OFF", 1: "STARTING", 2: "RUNNING", 99: "FAULT"}
-    k4.metric("State", status_map.get(status, status))
 
-    # --- TABLE ---
-    st.divider()
-    df = pd.DataFrame(list(data.items()), columns=["Tag Name", "Value"])
-    st.dataframe(df, use_container_width=True, height=500)
+# ROW 2: Ion Source Internals
+st.subheader("⚛️ Ion Source Control")
+r2c1, r2c2, r2c3, r2c4 = st.columns(4)
 
-# Refresh every 5 seconds (GitHub rate limits are generous but not infinite)
-time.sleep(5)
-st.rerun()
+fil_a = get_val(data, "system.ionSource.ioniser.filament.readbackA", 0)
+r2c1.metric("Filament", f"{fil_a:.2f} A")
+
+# Power is nicer to see than volts sometimes for ionisers
+ion_w = get_val(data, "system.ionSource.ioniser.readbackW", 0)
+r2c2.metric("Ioniser Power", f"{ion_w:.1f} W")
+
+ext_v = get_val(data, "system.ionSource.extraction.readbackV", 0)
+r2c3.metric("Extraction", f"{ext_v:.1f} V")
+
+# Cesium or Thermionic depending on what is non-zero?
+cs_temp = get_val(data, "system.ionSource.cesium.readbackC", 0)
+r2c4.metric("Cesium Temp", f"{cs_temp:.1f} °C")
+
+# ROW 3: Vacuum & Mechanical
+st.subheader("💨 Vacuum & Cooling")
+r3c1, r3c2, r3c3, r3c4 = st.columns(4)
+
+turbo_spd = get_val(data, "system.vacuumSystem.pumps.turbo.source_1.speed", 0)
+r3c1.metric("Turbo Speed", f"{turbo_spd:.0f} Hz")
+
+coolant = get_val(data, "system.general.coolantStatus", False)
+r3c2.metric("Coolant Flow", "OK" if coolant else "LOW", delta_color="normal" if coolant else "inverse")
+
+gate_val = get_val(data, "system.vacuumSystem.valves.gate.open", False)
+r3c3.metric("Gate Valve", "OPEN" if gate_val else "CLOSED")
+
+# Placeholder for sample stage or other
+stage_z = get_val(data, "endstation.stage.motion.readback_z_mm", 0)
+r3c4.metric("Stage Z", f"{stage_z:.1f} mm")
+
+
+# --- DEBUG / RAW DATA TOGGLE ---
+st.divider()
+with st.expander("🛠️ View Raw Telemetry Data"):
+    # Filter out the boring 'false' fault arrays to make the table readable
+    filtered_data = {k: v for k, v in data.items() if "faultArray" not in k and "messageBuffer" not in k}
+    df = pd.DataFrame(list(filtered_data.items()), columns=["Tag", "Value"])
+    st.dataframe(df, use_container_width=True)
+
+# Auto-reload logic
+time.sleep(1) 
+st.empty() # Placeholder clearing
+if age_seconds < 600: # Only auto-rerun if the page is somewhat active
+    time.sleep(2)
+    st.rerun()
