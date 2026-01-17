@@ -309,7 +309,7 @@ st.subheader("🚀 Primary Parameters")
 r1c1, r1c2, r1c3, r1c4 = st.columns(4)
 
 p_filament = get_val(data, "system.ionSource.ioniser.filament.readbackW", 0)
-r1c1.metric("Beam Voltage", f"{p_filament:.2f} W")
+r1c1.metric("Filament Power", f"{p_filament:.2f} W")
 
 p_source = get_val(data, "system.vacuumSystem.gauges.source.readback_mB", 0)
 r1c2.metric("Source Pressure", f"{p_source:.1e} mbar")
