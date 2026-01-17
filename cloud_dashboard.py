@@ -8,6 +8,47 @@ import pandas as pd
 # --- CONFIGURATION ---
 RAW_URL = "https://gist.githubusercontent.com/joshbird98/9de20220c7cd1e3c359c22b4775faa46/raw/status.json"
 
+# --- FAULT DICTIONARY (Edit these to match your PLC Logic) ---
+# Maps the Index of "system.general.faultArray[i]" to a string
+FAULT_MAP = {
+    0: "Unknown fault - reserved",
+    1: "HV door interlock reads open",
+    2: "Water coolant primary flow reads off",
+    3: "Water coolant primary temp exceeds safe limit",
+    4: "Chiller unit reports fault",
+    5: "Source body temp exceeds safe limit",
+    6: "Thermionic current exceeds safe conditioning level",
+    7: "Thermionic current exceeds safe limit",
+    8: "Thermionic voltage exceeds safe limit",
+    9: "Thermionic power exceeds safe limit",
+    10: "Filament current exceeds safe limit",
+    11: "Filament voltage exceeds safe limit",
+    12: "Filament resistance exceeds safe limit",
+    13: "Filament resistance too high - possible open circuit",
+    14: "Filament resistance too low - possible short circuit",
+    15: "Ioniser power exceeds safe limit",
+    16: "Ioniser PID control error"
+    17: "Target current exceeds safe conditioning limit",
+    18: "Target current exceeds safe limit",
+    19: "Target voltage exceeds safe limit",
+    20: "Target power exceeds safe limit",
+    21: "Extraction current exceeds safe conditioning limit",
+    22: "Extraction current exceeds safe conditioning limit",
+    23: "Extraction current exceeds safe limit",
+    24: "Extraction voltage exceeds safe limit",
+    25: "Extraction power exceeds safe limit",
+    26: "Cesium temperature exceeds safe limit",
+    27: "Cesium cooldown has exceeded time limit",
+    28: "Cesium temperature reading failed",
+    29: "Cesium temperature has not increased within time limit",
+    30: "Cesium PID control error",
+    31: "Vaccum level in source too high",
+    32: "Time Fault",
+    33: "Flow rate for source coolant is insufficient",
+    34: "PLC Diagnostic Error - OB82",
+    35: "Rack Error - cannot reach IO module",
+}
+
 st.set_page_config(
     page_title="IPIDS Monitor",
     page_icon="⚡",
@@ -18,20 +59,18 @@ st.set_page_config(
 # --- CSS STYLING ---
 st.markdown("""
     <style>
-        /* 1. STANDARD METRIC CARDS (For the grey ones) */
+        /* 1. STANDARD METRIC CARDS */
         .stMetric {
             background-color: #1E1E1E;
             border: 1px solid #333333;
             padding: 15px 20px;
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-            height: 140px; /* Fixed height for alignment */
+            height: 140px;
             display: flex;
             flex-direction: column;
             justify-content: center;
         }
-        
-        /* Typography for Standard Metrics */
         [data-testid="stMetricLabel"] { color: #B0B0B0 !important; font-weight: 500; font-size: 0.9rem; }
         [data-testid="stMetricValue"] { color: #FFFFFF !important; font-family: 'Roboto Mono', monospace; font-size: 1.8rem !important; }
 
@@ -40,7 +79,7 @@ st.markdown("""
             padding: 15px 20px;
             border-radius: 10px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-            height: 140px; /* MUST Match .stMetric height */
+            height: 140px;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -48,47 +87,43 @@ st.markdown("""
             font-family: "Source Sans Pro", sans-serif;
         }
         
-        /* FAULT STATE (Red Background) */
-        .status-critical {
-            background-color: #5a1a1a; /* Dark Red Background */
-            border: 2px solid #ff4b4b; /* Bright Red Border */
-        }
+        /* FAULT STATE (Red) */
+        .status-critical { background-color: #5a1a1a; border: 2px solid #ff4b4b; }
         .status-critical .stat-label { color: #ffcccc; font-size: 0.9rem; font-weight: 500; }
         .status-critical .stat-value { color: #ffffff; font-size: 1.8rem; font-weight: 700; font-family: 'Roboto Mono', monospace; }
-        .status-critical .stat-delta { color: #ff9999; font-size: 0.9rem; margin-top: 5px; }
+        .status-critical .stat-delta { color: #ff9999; font-size: 1.0rem; margin-top: 5px; font-weight: 600; }
 
-        /* NORMAL STATE (Green Border, Dark BG) */
-        .status-normal {
-            background-color: #1E1E1E; 
-            border: 1px solid #09ab3b; /* Green Border */
-        }
-        .status-normal .stat-label { color: #B0B0B0; font-size: 0.9rem; font-weight: 500; }
-        .status-normal .stat-value { color: #ffffff; font-size: 1.8rem; font-family: 'Roboto Mono', monospace; }
-        .status-normal .stat-delta { color: #09ab3b; font-size: 0.9rem; margin-top: 5px; }
-
-        /* WARNING STATE (Orange Border) */
-        .status-warning {
-            background-color: #1E1E1E;
-            border: 1px solid #ff9f1c; /* Orange Border */
-        }
+        /* WARNING/STALE STATE (Orange) */
+        .status-warning { background-color: #1E1E1E; border: 1px solid #ff9f1c; }
         .status-warning .stat-label { color: #B0B0B0; }
         .status-warning .stat-value { color: #ffffff; font-family: 'Roboto Mono', monospace; font-size: 1.8rem; }
         .status-warning .stat-delta { color: #ff9f1c; margin-top: 5px; }
 
-        /* Layout Tweaks */
+        /* NORMAL STATE (Green) */
+        .status-normal { background-color: #1E1E1E; border: 1px solid #09ab3b; }
+        .status-normal .stat-label { color: #B0B0B0; }
+        .status-normal .stat-value { color: #ffffff; font-family: 'Roboto Mono', monospace; font-size: 1.8rem; }
+        .status-normal .stat-delta { color: #09ab3b; font-size: 0.9rem; margin-top: 5px; }
+
+        /* 3. ACTIVE FAULT LIST (Red Box below header) */
+        .fault-banner {
+            background-color: #5a1a1a;
+            border-left: 5px solid #ff4b4b;
+            padding: 15px;
+            margin-top: 10px;
+            border-radius: 5px;
+            color: #ffcccc;
+        }
+
         div[data-testid="column"] { text-align: center; }
         .block-container { padding-top: 2rem; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- HELPER: CUSTOM HTML CARD RENDERER ---
+# --- HELPER FUNCTIONS ---
 def render_status_card(container, label, value, sub_text, style="normal"):
-    """
-    Renders a custom HTML card that mimics st.metric but with custom colors.
-    style: 'normal', 'critical', 'warning'
-    """
+    """Renders the custom HTML status card."""
     css_class = f"status-{style}"
-    
     html_code = f"""
     <div class="status-card {css_class}">
         <div class="stat-label">{label}</div>
@@ -98,7 +133,25 @@ def render_status_card(container, label, value, sub_text, style="normal"):
     """
     container.markdown(html_code, unsafe_allow_html=True)
 
-# --- DATA FETCHING ---
+def get_active_fault_messages(data):
+    """Scans data for faultArray[i] == True and returns list of strings."""
+    active_faults = []
+    if not data:
+        return []
+        
+    # Check the standard fault array keys
+    # We assume keys look like: system.general.faultArray[0], system.general.faultArray[1]...
+    for i in range(32): # Check up to 32 faults
+        key = f"system.general.faultArray[{i}]"
+        is_active = data.get(key, False)
+        
+        if is_active:
+            # Look up the description, or default to "Unknown Fault #X"
+            desc = FAULT_MAP.get(i, f"Fault Code #{i}")
+            active_faults.append(desc)
+            
+    return active_faults
+
 def get_raw_data():
     try:
         cache_buster = f"?t={int(time.time())}"
@@ -110,20 +163,16 @@ def get_raw_data():
                 snapshot = response.json()
             except json.JSONDecodeError:
                 return None, None
-
+            
             raw_ts = snapshot.get('timestamp')
             ts_val = None
             if raw_ts:
                 try:
                     ts_val = float(raw_ts)
-                except (ValueError, TypeError):
-                    try:
-                        dt = pd.to_datetime(raw_ts)
-                        ts_val = dt.timestamp()
-                    except Exception:
-                        pass 
+                except:
+                    pass
             return snapshot, ts_val
-    except Exception:
+    except:
         pass
     return None, None
 
@@ -162,8 +211,13 @@ age_seconds = time.time() - msg_timestamp if msg_timestamp else 0
 is_stale = age_seconds > 80
 is_offline = age_seconds > 300
 
-# Status Variables
-fault_active = get_val(data, "system.general.systemFault", False)
+# Status & Faults
+fault_active_bit = get_val(data, "system.general.systemFault", False)
+active_fault_list = get_active_fault_messages(data)
+
+# If the global bit is true OR we found specific faults in the list
+is_fault_condition = fault_active_bit or (len(active_fault_list) > 0)
+
 state_code = get_val(data, "system.ionSource.general.status", 0)
 state_map = {0: "OFF", 1: "STARTING", 2: "RUNNING", 99: "FAULT"}
 sys_state = state_map.get(state_code, "UNKNOWN")
@@ -171,34 +225,46 @@ sys_state = state_map.get(state_code, "UNKNOWN")
 # --- HEADER ROW ---
 c1, c2, c3 = st.columns([1, 2, 1])
 
-# 1. System State (Standard Card)
 c1.metric("System State", sys_state)
 
-# 2. Diagnostics (CUSTOM HTML CARD)
-if fault_active:
-    # RED BOX MODE
-    render_status_card(c2, "Diagnostics", "FAULT ACTIVE", "⚠️ CRITICAL ERROR", style="critical")
+# LOGIC: What to show in the center card?
+if is_fault_condition:
+    # 1. Determine what text to show
+    if len(active_fault_list) == 1:
+        # If only one fault, show it directly in the card
+        sub_text = f"⚠️ {active_fault_list[0]}"
+    elif len(active_fault_list) > 1:
+        # If multiple, show count
+        sub_text = f"⚠️ {len(active_fault_list)} Active Faults"
+    else:
+        # Fallback if bit is true but no array match
+        sub_text = "⚠️ Check PLC Logs"
+
+    render_status_card(c2, "Diagnostics", "FAULT ACTIVE", sub_text, style="critical")
+
 elif is_offline:
-    # ORANGE/RED MODE
     render_status_card(c2, "Diagnostics", "OFFLINE", f"Last seen {int(age_seconds)}s ago", style="warning")
 elif is_stale:
-    # ORANGE MODE
     render_status_card(c2, "Diagnostics", "SYSTEM NORMAL", f"⚠️ Slow Connection ({int(age_seconds)}s)", style="warning")
 else:
-    # GREEN BORDER MODE
     render_status_card(c2, "Diagnostics", "SYSTEM NORMAL", "✅ Online and Stable", style="normal")
 
-# 3. Last Update (Standard Card)
 if msg_timestamp:
     pretty_time = datetime.datetime.fromtimestamp(msg_timestamp).strftime('%H:%M:%S')
 else:
     pretty_time = "Unknown"
 c3.metric("Last Update", pretty_time)
 
+# --- DETAILED FAULT LIST (New Section) ---
+# If there is more than 1 fault, or if we just want to be explicit, list them here.
+if is_fault_condition and len(active_fault_list) > 0:
+    st.markdown('<div class="fault-banner"><strong>❌ Active System Faults:</strong><ul>' + 
+                "".join([f"<li>{err}</li>" for err in active_fault_list]) + 
+                "</ul></div>", unsafe_allow_html=True)
+
 st.divider()
 
 # --- METRICS GRID ---
-# ROW 1
 st.subheader("🚀 Primary Parameters")
 r1c1, r1c2, r1c3, r1c4 = st.columns(4)
 
