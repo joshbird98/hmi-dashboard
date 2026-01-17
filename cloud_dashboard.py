@@ -141,14 +141,17 @@ def get_active_fault_messages(data):
         
     # Check the standard fault array keys
     # We assume keys look like: system.general.faultArray[0], system.general.faultArray[1]...
-    for i in range(32): # Check up to 32 faults
-        key = f"system.general.faultArray[{i}]"
-        is_active = data.get(key, False)
+    for i in range(99): # Check up to 99 faults
+        try:
+            key = f"system.general.faultArray[{i}]"
+            is_active = data.get(key, False)
         
-        if is_active:
-            # Look up the description, or default to "Unknown Fault #X"
-            desc = FAULT_MAP.get(i, f"Fault Code #{i}")
-            active_faults.append(desc)
+            if is_active:
+                # Look up the description, or default to "Unknown Fault #X"
+                desc = FAULT_MAP.get(i, f"Fault Code #{i}")
+                active_faults.append(desc)
+        except KeyError:
+            pass
             
     return active_faults
 
