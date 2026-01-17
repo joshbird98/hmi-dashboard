@@ -312,7 +312,7 @@ p_filament = get_val(data, "system.ionSource.ioniser.filament.readbackW", 0)
 r1c1.metric("Filament Power", f"{p_filament:.2f} W")
 
 p_source = get_val(data, "system.vacuumSystem.gauges.source.readback_mB", 0)
-r1c2.metric("Source Pressure", f"{p_source:.1e} mbar")
+r1c2.metric("Source Pressure", f"{p_source:.2e} mbar")
 
 t_source = get_val(data, "system.ionSource.general.bodyTempC", 0)
 r1c3.metric("Source Temp", f"{t_source:.2f} C")
@@ -325,8 +325,8 @@ else:
     label = "Beam Current (Cup)"
 r1c3.metric(label, f"{cup_current*1e6:.1f} µA")"""
 
-v_mag = get_val(data, "beamline.magnet.readbackA", 0)
-r1c4.metric("Magnet Current", f"{v_mag:.2f} A")
+p_beamline = get_val(data, "system.vacuumSystem.gauges.beamline.readback_mB", 0)
+r1c4.metric("Source Pressure", f"{p_beamline:.2e} mbar")
 
 # ROW 2
 st.subheader("⚛️ Ion Source Control")
