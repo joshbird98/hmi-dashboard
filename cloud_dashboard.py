@@ -314,13 +314,16 @@ r1c1.metric("Filament Power", f"{p_filament:.2f} W")
 p_source = get_val(data, "system.vacuumSystem.gauges.source.readback_mB", 0)
 r1c2.metric("Source Pressure", f"{p_source:.1e} mbar")
 
-cup_current = get_val(data, "beamline.drop_in_cup.measured_current_A", 0)
+t_source = get_val(data, "system.ionSource.general.bodyTempC", 0)
+r1c3.metric("Source Temp", f"{t_source:.2f} C")
+
+"""cup_current = get_val(data, "beamline.drop_in_cup.measured_current_A", 0)
 if cup_current == 0:
     cup_current = get_val(data, "beamline.straight_thru_cup.measured_current_A", 0)
     label = "Beam Current (Str)"
 else:
     label = "Beam Current (Cup)"
-r1c3.metric(label, f"{cup_current*1e6:.1f} µA")
+r1c3.metric(label, f"{cup_current*1e6:.1f} µA")"""
 
 v_mag = get_val(data, "beamline.magnet.readbackA", 0)
 r1c4.metric("Magnet Current", f"{v_mag:.2f} A")
