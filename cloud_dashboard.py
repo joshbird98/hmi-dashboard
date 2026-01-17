@@ -112,13 +112,12 @@ status_color = "grey"
 status_msg = "UNKNOWN STATE"
 
 if msg_timestamp:
-    # Use local machine time for difference
     age_seconds = time.time() - msg_timestamp
     
-    if age_seconds > 120:
+    if age_seconds > 300:  # 5 Minutes = Definitely Offline
         status_color = "red"
         status_msg = "OFFLINE / STALE"
-    elif age_seconds > 30:
+    elif age_seconds > 130: # 80 Seconds = Missed a beat (since we upload every 60s)
         status_color = "orange"
         status_msg = "SLOW CONNECTION"
     else:
