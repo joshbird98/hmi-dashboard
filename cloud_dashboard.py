@@ -188,7 +188,7 @@ coolant = get_val(data, "system.general.coolantStatus", False)
 r1c1.metric("Coolant Flow", "OK" if coolant else "LOW", delta_color="normal" if coolant else "inverse")
 
 p_source = get_val(data, "system.vacuumSystem.gauges.source.readback_mB", 0)
-r1c2.metric("Source Pressure", f"{p_source:.1e} mbar")
+r1c2.metric("Source Pressure", f"{p_source:.2e} mbar")
 
 cup_current = get_val(data, "beamline.drop_in_cup.measured_current_A", 0)
 if cup_current == 0:
