@@ -270,7 +270,7 @@ st.divider()
 st.subheader("🚀 Primary Parameters")
 r1c1, r1c2, r1c3, r1c4 = st.columns(4)
 
-v_beam = get_val(data, "system.ionSource.general.beamVoltage", 0)
+v_beam = get_val(data, "system.ionSource.general.beamVoltage", 0) / 1000.0
 r1c1.metric("Beam Voltage", f"{v_beam:.2f} kV")
 
 p_source = get_val(data, "system.vacuumSystem.gauges.source.readback_mB", 0)
