@@ -19,15 +19,34 @@ st.set_page_config(
 # --- CSS STYLING ---
 st.markdown("""
     <style>
+        /* 1. The Card Container */
         .stMetric {
-            background-color: #0E1117;
-            border: 1px solid #303030;
-            padding: 15px;
-            border-radius: 5px;
+            background-color: #1E1E1E; /* Slightly lighter dark grey */
+            border: 1px solid #333333; /* Subtle border */
+            padding: 15px 20px;
+            border-radius: 10px;        /* Rounded corners */
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3); /* Pop-out shadow */
         }
+
+        /* 2. The Label (Small text at the top) */
+        [data-testid="stMetricLabel"] {
+            color: #B0B0B0 !important; /* Light Grey (Readable) */
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+
+        /* 3. The Value (Big number in the middle) */
+        [data-testid="stMetricValue"] {
+            color: #FFFFFF !important; /* Pure White */
+            font-family: 'Roboto Mono', monospace; /* Tech/Sci-fi font look */
+        }
+
+        /* 4. Center alignment fix */
         div[data-testid="column"] {
             text-align: center;
         }
+        
+        /* 5. Reduce whitespace at top */
         .block-container {
             padding-top: 2rem;
         }
