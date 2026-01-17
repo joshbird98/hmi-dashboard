@@ -42,10 +42,7 @@ def get_raw_data():
         cache_buster = f"?t={int(time.time())}"
         final_url = RAW_URL + cache_buster
         
-        response = requests.get(final_url, timeout=5)
-        if response.status_code == 200:
-            st.text(f"DEBUG: Downloaded {len(response.text)} bytes")
-            st.code(response.text[:1000]) # Show the first 1000 characters    
+        response = requests.get(final_url, timeout=5) 
         if response.status_code == 200:
             try:
                 snapshot = response.json()
