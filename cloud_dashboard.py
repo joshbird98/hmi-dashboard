@@ -112,15 +112,47 @@ with col_btn:
     if st.button('🔄 Refresh'):
         st.rerun()
 
-# 2. Fetch Data
-raw_snapshot, msg_timestamp = get_raw_data()
+# --- 2. INTELLIGENT DATA FETCHING ---
 
-# 3. Connection Logic
+# Initialize memory (Session State) to store the best data we've seen so far
+if "best_snapshot" not in st.session_state:
+    st.session_state["best_snapshot"] = None
+if "best_ts" not in st.session_state:
+    st.session_state["best_ts"] = 0.0
+
+# Fetch fresh candidate from the web
+fresh_snapshot, fresh_ts = get_raw_data()
+
+# DECISION ENGINE:
+# 1. If we got new data AND it is newer/same as what we have -> Update
+if fresh_snapshot and fresh_ts:
+    if fresh_ts >= st.session_state["best_ts"]:
+        st.session_state["best_snapshot"] = fresh_snapshot
+        st.session_state["best_ts"] = fresh_ts
+    else:
+        # This is the fix! 
+        # We fetched data, but it was OLDER than what we already have.
+        # This is a "Ghost" packet from an out-of-sync GitHub server. 
+        # We silently ignore it.
+        pass
+
+# 2. If fetch failed entirely (None), we just stick with what we have in memory.
+
+# Set the variables to be used by the rest of the script
+raw_snapshot = st.session_state["best_snapshot"]
+msg_timestamp = st.session_state["best_ts"]
+
+# --- 3. CONNECTION LOGIC ---
+
+# If we have absolutely nothing in memory (First run and failed), show error
 if raw_snapshot is None:
     st.warning("📡 Connecting to GitHub...")
     st.info(f"Target: {RAW_URL}")
     time.sleep(2)
     st.rerun()
+
+# Extract 'data' dict from our "Best Known" snapshot
+data = raw_snapshot.get("data", {})
 
 # Extract 'data' dict
 data = raw_snapshot.get("data", {})
