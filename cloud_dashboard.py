@@ -52,7 +52,12 @@ st.set_page_config(
     page_title="IPIDS Monitor",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="collapsed"
+    initial_sidebar_state="collapsed", # Hides the sidebar by default on mobile
+    menu_items={
+        'Get Help': None,
+        'Report a bug': None,
+        'About': None
+    }
 )
 
 # --- CSS STYLING ---
