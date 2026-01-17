@@ -27,7 +27,7 @@ FAULT_MAP = {
     13: "Filament resistance too high - possible open circuit",
     14: "Filament resistance too low - possible short circuit",
     15: "Ioniser power exceeds safe limit",
-    16: "Ioniser PID control error"
+    16: "Ioniser PID control error",
     17: "Target current exceeds safe conditioning limit",
     18: "Target current exceeds safe limit",
     19: "Target voltage exceeds safe limit",
