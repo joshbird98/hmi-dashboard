@@ -121,6 +121,12 @@ st.markdown("""
 
         div[data-testid="column"] { text-align: center; }
         .block-container { padding-top: 2rem; }
+
+        /* DISABLE PULL-TO-REFRESH */
+        html, body, [data-testid="stAppViewContainer"] {
+            overscroll-behavior-y: none !important;
+        }
+        
     </style>
 """, unsafe_allow_html=True)
 
