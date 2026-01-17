@@ -216,4 +216,44 @@ else:
     label = "Beam Current (Cup)"
 r1c3.metric(label, f"{cup_current*1e6:.1f} µA")
 
-v_mag = get_val(data, "beam
+v_mag = get_val(data, "beamline.magnet.readbackA", 0)
+r1c4.metric("Magnet Current", f"{v_mag:.2f} A")
+
+# ROW 2
+st.subheader("⚛️ Ion Source Control")
+r2c1, r2c2, r2c3, r2c4 = st.columns(4)
+
+fil_a = get_val(data, "system.ionSource.ioniser.filament.readbackA", 0)
+r2c1.metric("Filament", f"{fil_a:.2f} A")
+
+ion_w = get_val(data, "system.ionSource.ioniser.readbackW", 0)
+r2c2.metric("Ioniser Power", f"{ion_w:.1f} W")
+
+ext_v = get_val(data, "system.ionSource.extraction.readbackV", 0)
+r2c3.metric("Extraction", f"{ext_v:.1f} V")
+
+cs_temp = get_val(data, "system.ionSource.cesium.readbackC", 0)
+r2c4.metric("Cesium Temp", f"{cs_temp:.1f} °C")
+
+# ROW 3
+st.subheader("💨 Vacuum & Cooling")
+r3c1, r3c2, r3c3, r3c4 = st.columns(4)
+
+turbo_spd = get_val(data, "system.vacuumSystem.pumps.turbo.source_1.speed", 0)
+r3c1.metric("Turbo Speed", f"{turbo_spd:.0f} Hz")
+
+coolant = get_val(data, "system.general.coolantStatus", False)
+r3c2.metric("Coolant Flow", "OK" if coolant else "LOW", delta="Normal" if coolant else "-Fault", delta_color="normal" if coolant else "inverse")
+
+gate_val = get_val(data, "system.vacuumSystem.valves.gate.open", False)
+r3c3.metric("Gate Valve", "OPEN" if gate_val else "CLOSED")
+
+stage_z = get_val(data, "endstation.stage.motion.readback_z_mm", 0)
+r3c4.metric("Stage Z", f"{stage_z:.1f} mm")
+
+# Auto-reload logic
+time.sleep(1) 
+st.empty()
+refresh_rate = 10 if not is_offline else 30
+time.sleep(refresh_rate)
+st.rerun()
