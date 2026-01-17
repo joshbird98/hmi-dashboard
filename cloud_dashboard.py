@@ -167,8 +167,8 @@ st.divider()
 st.subheader("🚀 Primary Parameters")
 r1c1, r1c2, r1c3, r1c4 = st.columns(4)
 
-v_beam = get_val(data, "system.ionSource.general.beamVoltage", 0)
-r1c1.metric("Beam Voltage", f"{v_beam:.2f} kV")
+coolant = get_val(data, "system.general.coolantStatus", False)
+r1c1.metric("Coolant Flow", "OK" if coolant else "LOW", delta_color="normal" if coolant else "inverse")
 
 p_source = get_val(data, "system.vacuumSystem.gauges.source.readback_mB", 0)
 r1c2.metric("Source Pressure", f"{p_source:.1e} mbar")
@@ -201,7 +201,7 @@ r2c3.metric("Extraction", f"{ext_v:.1f} V")
 cs_temp = get_val(data, "system.ionSource.cesium.readbackC", 0)
 r2c4.metric("Cesium Temp", f"{cs_temp:.1f} °C")
 
-# ROW 3: Vacuum & Mechanical
+# ROW 3: Vacuum
 st.subheader("💨 Vacuum & Cooling")
 r3c1, r3c2, r3c3, r3c4 = st.columns(4)
 
