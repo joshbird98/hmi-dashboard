@@ -10,7 +10,7 @@ TOPIC_NAME = "ibc-ipids-monitor"  # Match your ntfy topic
 REFRESH_INTERVAL = 30 # Seconds for auto-refresh
 
 st.set_page_config(
-    page_title="Ion Source Monitor",
+    page_title="IPIDS Monitor",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="collapsed"
