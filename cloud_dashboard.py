@@ -124,6 +124,33 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
+# --- HIDE STREAMLIT STYLE ---
+st.markdown("""
+    <style>
+        /* Hide the top header (Hamburger menu, Running man icon) */
+        header {
+            visibility: hidden;
+            height: 0px;
+        }
+
+        /* Hide the bottom footer (Made with Streamlit) */
+        footer {
+            visibility: hidden;
+            height: 0px;
+        }
+        
+        /* Optional: Hide the top colored decoration bar */
+        .stApp > header {
+            background-color: transparent;
+        }
+        
+        /* Adjust top padding since header is gone */
+        .block-container {
+            padding-top: 1rem;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
 # --- HELPER FUNCTIONS ---
 def render_status_card(container, label, value, sub_text, style="normal"):
     """Renders the custom HTML status card."""
