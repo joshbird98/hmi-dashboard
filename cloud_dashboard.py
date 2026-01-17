@@ -45,6 +45,10 @@ def get_raw_data():
         response = requests.get(final_url, timeout=5)
         
         if response.status_code == 200:
+            st.text(f"DEBUG: Downloaded {len(response.text)} bytes")
+            st.code(response.text[:1000]) # Show the first 1000 characters
+            
+        if response.status_code == 200:
             try:
                 snapshot = response.json()
             except json.JSONDecodeError:
