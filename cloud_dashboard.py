@@ -305,60 +305,60 @@ if is_fault_condition and len(active_fault_list) > 0:
 st.divider()
 
 # --- METRICS GRID ---
+
+# ROW 1 - Pressures & Temp
 st.subheader("🚀 Primary Parameters")
 r1c1, r1c2, r1c3, r1c4 = st.columns(4)
 
-p_filament = get_val(data, "system.ionSource.ioniser.filament.readbackW", 0)
-r1c1.metric("Filament Power", f"{p_filament:.2f} W")
-
 p_source = get_val(data, "system.vacuumSystem.gauges.source.readback_mB", 0)
-r1c2.metric("Source Pressure", f"{p_source:.2e} mbar")
-
-t_source = get_val(data, "system.ionSource.general.bodyTempC", 0)
-r1c3.metric("Source Temp", f"{t_source:.2f} C")
-
-"""cup_current = get_val(data, "beamline.drop_in_cup.measured_current_A", 0)
-if cup_current == 0:
-    cup_current = get_val(data, "beamline.straight_thru_cup.measured_current_A", 0)
-    label = "Beam Current (Str)"
-else:
-    label = "Beam Current (Cup)"
-r1c3.metric(label, f"{cup_current*1e6:.1f} µA")"""
+r1c1.metric("Source Pressure", f"{p_source:.2e} mbar")
 
 p_beamline = get_val(data, "system.vacuumSystem.gauges.beamline.readback_mB", 0)
-r1c4.metric("Source Pressure", f"{p_beamline:.2e} mbar")
+r1c2.metric("Beamline Pressure", f"{p_beamline:.2e} mbar")
 
-# ROW 2
-st.subheader("⚛️ Ion Source Control")
+t_source = get_val(data, "system.ionSource.general.bodyTempC", 0)
+r1c3.metric("Source Temp", f"{t_source:.2f} °C")
+
+# Added Target Voltage here
+v_target = get_val(data, "system.ionSource.target.readbackV", 0)
+r1c4.metric("Target Voltage", f"{v_target:.1f} V")
+
+# ROW 2 - Electrical Readbacks
+st.subheader("⚛️ Electrical Readbacks")
 r2c1, r2c2, r2c3, r2c4 = st.columns(4)
 
-fil_a = get_val(data, "system.ionSource.ioniser.filament.readbackA", 0)
-r2c1.metric("Filament", f"{fil_a:.2f} A")
-
+# Added Ioniser Power
 ion_w = get_val(data, "system.ionSource.ioniser.readbackW", 0)
-r2c2.metric("Ioniser Power", f"{ion_w:.1f} W")
+r2c1.metric("Ioniser Power", f"{ion_w:.1f} W")
 
+# Added Filament Power
+fil_w = get_val(data, "system.ionSource.ioniser.filament.readbackW", 0)
+r2c2.metric("Filament Power", f"{fil_w:.2f} W")
+
+# Added Thermionic Power
+therm_w = get_val(data, "system.ionSource.ioniser.thermionic.readbackW", 0)
+r2c3.metric("Thermionic Power", f"{therm_w:.1f} W")
+
+# Added Extraction Voltage
 ext_v = get_val(data, "system.ionSource.extraction.readbackV", 0)
-r2c3.metric("Extraction", f"{ext_v:.1f} V")
+r2c4.metric("Extraction Voltage", f"{ext_v:.1f} V")
 
-cs_temp = get_val(data, "system.ionSource.cesium.readbackC", 0)
-r2c4.metric("Cesium Temp", f"{cs_temp:.1f} °C")
-
-# ROW 3
-st.subheader("💨 Vacuum & Cooling")
+# ROW 3 - System & Cesium
+st.subheader("💨 System & Cesium")
 r3c1, r3c2, r3c3, r3c4 = st.columns(4)
 
+# Added Cesium Temp
+cs_temp = get_val(data, "system.ionSource.cesium.readbackC", 0)
+r3c1.metric("Cesium Temp", f"{cs_temp:.1f} °C")
+
 turbo_spd = get_val(data, "system.vacuumSystem.pumps.turbo.source_1.speed", 0)
-r3c1.metric("Turbo Speed", f"{turbo_spd:.0f} Hz")
+r3c2.metric("Turbo Speed", f"{turbo_spd:.0f} Hz")
 
 coolant = get_val(data, "system.general.coolantStatus", False)
-r3c2.metric("Coolant Flow", "OK" if coolant else "LOW", delta="Normal" if coolant else "-Fault", delta_color="normal" if coolant else "inverse")
+r3c3.metric("Coolant Flow", "OK" if coolant else "LOW", delta="Normal" if coolant else "-Fault", delta_color="normal" if coolant else "inverse")
 
 gate_val = get_val(data, "system.vacuumSystem.valves.gate.open", False)
-r3c3.metric("Gate Valve", "OPEN" if gate_val else "CLOSED")
-
-stage_z = get_val(data, "endstation.stage.motion.readback_z_mm", 0)
-r3c4.metric("Stage Z", f"{stage_z:.1f} mm")
+r3c4.metric("Gate Valve", "OPEN" if gate_val else "CLOSED")
 
 # Auto-reload logic
 time.sleep(1) 
